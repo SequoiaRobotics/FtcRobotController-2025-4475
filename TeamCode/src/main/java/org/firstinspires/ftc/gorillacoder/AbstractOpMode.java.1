@@ -1,0 +1,633 @@
+package org.firstinspires.ftc.teamcode;
+
+import static org.firstinspires.ftc.vision.VisionPortal.CameraState.STREAMING;
+import static org.firstinspires.ftc.vision.VisionPortal.StreamFormat.MJPEG;
+
+import static java.util.concurrent.TimeUnit.SECONDS;
+
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.util.Range;
+import com.qualcomm.robotcore.util.RobotLog;
+
+import org.firstinspires.ftc.robotcore.external.ClassFactory;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.CameraName;
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.Pose3D;
+import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
+import org.firstinspires.ftc.vision.apriltag.AprilTagPoseFtc;
+import org.firstinspires.ftc.vision.apriltag.AprilTagPoseRaw;
+import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.PriorityQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+public abstract class AbstractOpMode<OpModeT extends OpMode> extends OpMode {
+    public AbstractOpMode<OpModeT> tasks(Object... value)
+            throws BotTaskBuilder.Exception, ClassNotFoundException, IllegalAccessException, InstantiationException {
+        BotTaskBuilder<AbstractOpMode<OpModeT>> builder = (new BotTaskBuilder<AbstractOpMode<OpModeT>>()).opMode(this);
+        tasks = new PriorityQueue<>(builder.addTasks(value).tasks());
+
+        return this;
+    }
+
+    public void loop() {
+        // TODO: Perhaps use an ElapsedTime instead of tracking start time.
+        BotTask<AbstractOpMode<OpModeT>> task = tasks.poll();
+        long now = System.currentTimeMillis();
+        RobotLog.ii(GORILLA_CORE,
+                "%s.loop() start: task:%s now:%d nextRun:%d ",
+                getClass().getSimpleName(), task.getClass().getSimpleName(),
+                now, task.nextRunMillis()
+        );
+        if (task.nextRunMillis() < now) {
+            long nextRun0 = task.nextRunMillis();
+            task.nextRunMillis(now);
+            RobotLog.ii(GORILLA_CORE,
+                    "%s.loop() task %s under run. now:%d task next was %d reset to %d",
+                    getClass().getSimpleName(), task.getClass().getSimpleName(),
+                    now, nextRun0, task.nextRunMillis()
+            );
+        }
+        RobotLog.ii(GORILLA_CORE, "%s.loop %15s waiting: delta:%d now:%d until:%d",
+                getClass().getSimpleName(), task.getClass().getSimpleName(),
+                task.nextRunMillis() - now, now, task.nextRunMillis());
+        sleepUntil(GORILLA_CORE, "loop waiting for next run", task.nextRunMillis());
+        RobotLog.ii(GORILLA_CORE, "%s.loop %15s at %d: running task at %d",
+                getClass().getSimpleName(), task.getClass().getSimpleName(), now, task.nextRunMillis());
+        task.run();
+        task.nextRunMillis(task.nextRunMillis() + task.frequencyMillis());
+        tasks.add(task);
+        RobotLog.ii(GORILLA_CORE, "%s.loop %15s at %d: done nextRun:%d frequency:%d",
+                getClass().getSimpleName(), task.getClass().getSimpleName(),
+                now, task.nextRunMillis(), task.frequencyMillis());
+    }
+
+    @Override
+    public void init() {
+        tasks.forEach(task -> {
+            RobotLog.ii(GORILLA_CORE, "AbstractOpMode init: %s", task.getClass().getSimpleName());
+            task.init();
+        });
+    }
+
+    @Override
+    public void start() {
+        tasks.forEach(task -> {
+            RobotLog.ii(GORILLA_CORE, "AbstractOpMode start: %s", task.getClass().getSimpleName());
+            task.start();
+        });
+    }
+
+    @Override
+    public void stop() {
+        tasks.forEach(task -> {
+            RobotLog.ii(GORILLA_CORE, "AbstractOpMode stop: %s", task.getClass().getSimpleName());
+            task.stop();
+        });
+    }
+
+    public static abstract class AbstractOpModeTask<OpModeT extends OpMode> extends AbstractBotTask<AbstractOpMode<OpModeT>> {
+    }
+
+    // TODO: Add tasks for IsAuto/isTeleOp, IMU Orientation, Voltage, Motor Bulk Read, BlobFinder
+    // IsAuto: use IMU and April tags to figure out if we are Red/Blue alliance, where we started on the field,
+    //         movement delay, and any other auto parameters.
+    // IMU: ConceptExploringIMUOrientation, SensorIMUOrthogonal, SensorIMUNonOrthogonal
+    // Voltate: track bot battery voltage. ConceptTelemetry.
+    // Motor Bulk Read: read encoders in bulk "once per cycle", aka at some frequency, ideally just before Drive task.
+    //                  should perhave just be part of the drive task(s).
+    // BlobFinder: ConceptVisionColorLocator_Circle - find colored blobs on the field. Great for finding balls and so auto drive tasks can slurp them up.
+
+    abstract class AbstractDriveTask extends AbstractOpModeTask<OpModeT> {
+
+        public AbstractDriveTask init() {
+            driveRightFront.setDirection(DcMotorSimple.Direction.REVERSE);
+            driveRightRear.setDirection(DcMotorSimple.Direction.REVERSE);
+            driveLeftFront.setDirection(DcMotorSimple.Direction.FORWARD);
+            driveLeftRear.setDirection(DcMotorSimple.Direction.FORWARD);
+
+            return this;
+        }
+
+        public AbstractDriveTask driveLeftRear(DcMotorEx value) {
+            driveLeftRear = value;
+
+            return this;
+        }
+
+        public AbstractDriveTask driveRightRear(DcMotorEx value) {
+            driveRightRear = value;
+
+            return this;
+        }
+
+        public AbstractDriveTask driveLeftFront(DcMotorEx value) {
+            driveLeftFront = value;
+
+            return this;
+        }
+
+        public AbstractDriveTask driveRightFront(DcMotorEx value) {
+            driveRightFront = value;
+
+            return this;
+        }
+
+        DcMotorEx driveLeftRear;
+
+        DcMotorEx driveRightRear;
+
+        DcMotorEx driveLeftFront;
+
+        DcMotorEx driveRightFront;
+
+    } // abstract class AbstractDriveTask
+
+    class DrivePovTask extends AbstractDriveTask {
+        @Override
+        public DrivePovTask run() {
+            double leftPower = Range.clip(driveSpeed - driveTurn, -1.0, 1.0);
+            double rightPower = Range.clip(driveSpeed + driveTurn, -1.0, 1.0);
+
+            RobotLog.ii(GORILLA_CORE, "%s.run() start: left:%f right:%f", getClass().getSimpleName(), leftPower, rightPower);
+
+            // Send calculated power to wheels
+            driveLeftRear.setPower(leftPower);
+            driveLeftFront.setPower(leftPower);
+            driveRightRear.setPower(rightPower);
+            driveRightFront.setPower(rightPower);
+
+            // Show the elapsed game time and wheel power.
+            RobotLog.ii(GORILLA_CORE, "Status", "Run Time: " + runtime);
+            RobotLog.ii(GORILLA_CORE, "Motors", "left (%.2f), right (%.2f)", leftPower, rightPower);
+
+            RobotLog.ii(GORILLA_CORE, "%s.run() done: left:%f right:%f", getClass().getSimpleName(), leftPower, rightPower);
+            return this;
+        }
+
+        @Override
+        public DrivePovTask init() {
+            RobotLog.ii(GORILLA_CORE, "DrivePovTask init: start");
+            super.init();
+            this.frequencyMillis(10); // adjust motors every 10ms, 100/second
+            RobotLog.ii(GORILLA_CORE, "DrivePovTask init: done");
+            return this;
+        }
+    } // class DrivePovTask
+
+    // Tank Mode uses one stick to control each wheel.
+    class DriveTankTask extends AbstractDriveTask {
+        @Override
+        public DriveTankTask run() {
+            // Send calculated power to wheels
+            driveLeftRear.setPower(driveLeftPower);
+            driveLeftFront.setPower(driveLeftPower);
+            driveRightRear.setPower(driveRightPower);
+            driveRightFront.setPower(driveRightPower);
+
+            // Show the elapsed game time and wheel power.
+            telemetry.addData("Status", "Run Time: " + runtime);
+            telemetry.addData("Motors", "left (%.2f), right (%.2f)", driveLeftPower, driveRightPower);
+
+            return this;
+        }
+
+        @Override
+        public DriveTankTask init() {
+            super.init();
+            this.frequencyMillis(10); // adjust motors every 10ms, 100/second
+            return this;
+        }
+    } // class DriveTankTask
+
+    // TODO: Add a DriveMeccanumTask
+    // TODO: Add a DriveAutoToTargetTask. Probably one per type of drive train. Normal wheels, Omni/Holonomic, Mecanum.
+
+    public AbstractOpMode<OpModeT> sleepUntil(
+            String tag, String label, long nextRunTime, Supplier<Boolean> canInterrupt
+    )
+            throws InterruptedException
+    {
+        long now = System.currentTimeMillis();
+//        RobotLog.ii(tag, "sleepUntil start: called by %s to sleep %dms from now %d until %d",
+//                label, nextRunTime-now, now, nextRunTime
+//        );
+        for (long durationUntileNextRun = nextRunTime - now; 0 < durationUntileNextRun; durationUntileNextRun = nextRunTime - now) {
+//            RobotLog.ii(tag, "sleepUntil waiting for %s: sleepDuration = %d", label, durationUntileNextRun);
+
+            try {
+                Thread.sleep(durationUntileNextRun);
+            } catch (InterruptedException ex) {
+                if (canInterrupt.get()) {
+                    RobotLog.ee(tag, ex, "%s: wait interrupted, interrupt exceptions okay, rethrowing", label);
+                    throw ex;
+                } else {
+                    RobotLog.ee(tag, ex, "%s: wait interrupted, interrupt exceptions deferred, setting interrupted flag", label);
+                    Thread.currentThread().interrupt();
+                }
+            } catch (Throwable ex) {
+                RobotLog.ee(tag, ex, "%s: unexpected exception", label);
+            }
+//            RobotLog.ii(tag, "sleepUntil waited for %s: sleepDuration = %d", label, durationUntileNextRun);
+            now = System.currentTimeMillis();
+        }
+//        RobotLog.ii(
+//                tag, "sleepUntil done: called by %s for %d now %d",
+//                label, nextRunTime, now);
+
+        return this;
+    }
+    public AbstractOpMode<OpModeT> sleepUntil(String tag, String label, long nextRunTime) {
+        try {
+            return sleepUntil(tag, label, nextRunTime, () -> false);
+        } catch (InterruptedException ex) {
+            throw new RuntimeException("'Impossible' Interrupt Exception", ex);
+        }
+    }
+
+    class VisionTask extends AbstractOpModeTask<OpModeT> {
+        // When oh when will FIRST move from Java 11 to Java 25. Or even 17. *Sigh*
+        // TODO: AprilTagDetections should be a record and not a class.
+        class AprilTagDetections {
+            public List<AprilTagDetection> right;
+            public List<AprilTagDetection> left;
+        }
+
+        public ConcurrentHashMap<Integer, AprilTagDetection> targetDetectionsLeft = new ConcurrentHashMap<>();
+
+        public ConcurrentHashMap<Integer, AprilTagDetection> targetDetectionsRight = new ConcurrentHashMap<>();
+
+        // How many times have we seen each target april tag? Possibly helpful to filter out occasional bad tag detections.
+        public ConcurrentHashMap<Integer, Integer> targetDetectionsCounts = new ConcurrentHashMap<>();
+
+        long latestDetectionNanos;
+
+        private void updateDetections(
+                String cameraLabel,
+                ConcurrentHashMap<Integer, AprilTagDetection> targets,
+                List<AprilTagDetection> detections
+        ) {
+            Function<AprilTagPoseRaw, String> RawToString = (AprilTagPoseRaw value) ->
+                    "x:" + value.x +
+                            "y:" + value.y +
+                            "z:" + value.z +
+                            value.R;
+            Function<AprilTagPoseFtc, String> FtcToString = (AprilTagPoseFtc value) ->
+                    "x:" + value.x +
+                            "y:" + value.y +
+                            "z:" + value.z +
+                            "bearing:" + value.bearing +
+                            "elevation:" + value.elevation +
+                            "range:" + value.range +
+                            "pitch:" + value.pitch +
+                            "roll:" + value.roll +
+                            "yaw:" + value.yaw;
+            ;
+            Function<Pose3D, String> PoseToString = Pose3D::toString;
+
+            detections.forEach(detection -> {
+                RobotLog.ii(
+                        GORILLA_CORE, "updateDetections(): targets=%s detection=%s",
+                        targets, detection
+                );
+                targets.put(detection.id, detection);
+                if (latestDetectionNanos < detection.frameAcquisitionNanoTime) {
+                    latestDetectionNanos = detection.frameAcquisitionNanoTime;
+                }
+
+                RobotLog.ii(
+                        GORILLA_CORE,
+                        "updateDetections(): id:%d time:%d latest:%d margin:%f hamming:%d\n\t"
+                                + "center:%s corners:%d/%s/%s/%s/%s\n\t"
+                                + "raw:%s\n\t"
+                                + "ftc:%s\n\t"
+                                + "bot:%s",
+                        detection.id, detection.frameAcquisitionNanoTime, latestDetectionNanos,
+                        detection.decisionMargin,
+                        detection.hamming,
+                        detection.center,
+                        detection.corners.length, detection.corners[0], detection.corners[1], detection.corners[2], detection.corners[3],
+                        RawToString.apply(detection.rawPose),
+                        FtcToString.apply(detection.ftcPose),
+                        detection.robotPose
+                );
+                if (detection.metadata != null) {
+                    telemetry.addLine(String.format("\n==== (ID %d) %s", detection.id, detection.metadata.name));
+                    telemetry.addLine(String.format("XYZ %6.1f %6.1f %6.1f  (inch)", detection.ftcPose.x, detection.ftcPose.y, detection.ftcPose.z));
+                    telemetry.addLine(String.format("PRY %6.1f %6.1f %6.1f  (deg)", detection.ftcPose.pitch, detection.ftcPose.roll, detection.ftcPose.yaw));
+                    telemetry.addLine(String.format("RBE %6.1f %6.1f %6.1f  (inch, deg, deg)", detection.ftcPose.range, detection.ftcPose.bearing, detection.ftcPose.elevation));
+                } else {
+                    telemetry.addLine(String.format("\n==== (ID %d) Unknown", detection.id));
+                    telemetry.addLine(String.format("Center %6.0f %6.0f   (pixels)", detection.center.x, detection.center.y));
+                }
+            });
+
+        }
+
+        class VisionRunner implements Runnable {
+            public synchronized void loop() {
+                // TODO: Stay more responsive. Each time through loop do just one camera.
+                // Collect the detections that are fresh, update info, switch cameras, done.
+                telemetry.addData("portal state", portal.getCameraState());
+                if (!STREAMING.equals(portal.getCameraState())) return;
+                AprilTagDetections currentDetections = new AprilTagDetections();
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.run state=%s camera=%s", portal.getCameraState(), portal.getActiveCamera());
+                currentDetections.left = processor.getFreshDetections();
+                if (null == currentDetections.left) {
+                    currentDetections.left = new ArrayList<>();
+                }
+                RobotLog.ii(GORILLA_CORE, "Left: %d fresh detections ", currentDetections.left.size());
+                updateDetections("Left", targetDetectionsLeft, currentDetections.left);
+if (true) return;
+                portal.setActiveCamera(cameraRight);
+                currentDetections.right = processor.getFreshDetections();
+                if (null == currentDetections.right) {
+                    currentDetections.right = new ArrayList<>();
+                }
+                RobotLog.ii(GORILLA_CORE, "Left: %d fresh detections ", currentDetections.left.size());
+                updateDetections("Right", targetDetectionsRight, currentDetections.right);
+
+                // While we wait to run again, let the april tag processor process
+                portal.setActiveCamera(cameraLeft);
+                synchronized (this) {
+                    detections = currentDetections;
+                }
+                RobotLog.ii(GORILLA_CORE, "Left: %d AprilTags ", currentDetections.left.size());
+                RobotLog.ii(GORILLA_CORE, "Right: %d AprilTags ", currentDetections.right.size());
+            }
+
+            @Override
+            public void run() {
+                long time0 = System.currentTimeMillis();
+                long nextRunTime = time0;
+                int count = 0;
+                telemetry.log().add("VisionRunner.run(): start");
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.run start: time0 = %d", time0);
+                stopped = false;
+                running = true;
+                while (running) {
+                    long now = System.currentTimeMillis();
+                    if (nextRunTime < now) {
+                        nextRunTime = now;
+                    }
+                    nextRunTime += RUN_FREQUENCY_MILLIS;
+                    RobotLog.ii(GORILLA_CORE, "VisionRunner.run next run: count=%d now=%d next=%d time0=%d", count, now, nextRunTime, time0);
+                    loop();
+                    count++;
+                    // We can't dawdle after stop. RobotCore will kill us if we don't stop REAL quick.
+                    try {
+                        sleepUntil(
+                                GORILLA_CORE, "VisionRunner.run waiting", nextRunTime,
+                                () -> !running
+                        );
+                    } catch (InterruptedException ex) {
+                        // The only way we can be interrupted is if we are stopping. And we must stop quickly.
+                        RobotLog.ii(GORILLA_CORE, "VisionRunner.run ending wait due to stop command");
+                    }
+                }
+                stopped = true;
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.run done");
+                telemetry.log().add("VisionRunner.run(): done");
+
+            }
+
+            public VisionRunner init() {
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.init(), start");
+                // Consider: adding additional AprilTag library(ies)
+                // AprilTagLibrary tagLibrary = ...
+                // TODO: Add support for calibration. Needed for non/semi supported cameras like the arducam.
+                //       The Logitech C920 is well supported with built in calibrations for:
+                //       320x240, 352x288, 432x240, 640x360, 640x480, 800x448, 800x600, 864x480, 960x720,
+                //       1024x576, 1280x720, 1600x896, 1920x1080, 2304x1296, 2304x1536
+
+                // TODO: We really need to have a state variable:
+                // created, initializing, initialized, starting, running, stopping, cleaning, stopped.,
+                stopped = true;
+                running = false;
+
+                // Create the AprilTag processor by using a builder.
+                processor = new AprilTagProcessor.Builder()
+                        // .setTagLibrary(tagLibrary)
+                        .setDrawAxes(true)
+                        .setDrawCubeProjection(true)
+                        .build();
+
+                ClassFactory classFactory = ClassFactory.getInstance();
+                CameraName switchableCamera = classFactory
+                        .getCameraManager().nameForSwitchableCamera(cameraLeft, cameraRight);
+
+                // TODO: Add other processors (for artifact and other object detections)
+
+                // Create the vision portal by using a builder.
+                portal = new VisionPortal.Builder()
+                        .setCamera(switchableCamera)
+                        .setStreamFormat(MJPEG)
+                        // Each resolution, for each camera model, needs calibration values for good pose estimation.
+                        // .setCameraResolution(new Size(640, 480))
+                        .setAutoStartStreamOnBuild(true)
+                        .enableLiveView(true)
+                        .setAutoStopLiveView(true)
+                        .setShowStatsOverlay(true)
+                        .addProcessors(processor)
+                        // For multiple portals see:
+                        // https://ftc-docs.firstinspires.org/en/latest/apriltag/vision_portal/vision_multiportal/vision-multiportal.html
+                        // Given that a portal can support two cameras, I'm not sure why two portals would be useful ...
+                        // ... perhaps faster response than switching between cameras????
+                        // .setLiveViewContainerId(int containerId)
+                        .build();
+                portal.setActiveCamera(cameraLeft);
+
+
+                // portal.setProcessorEnabled(processor, true); // Code can enable or disable as needed to free up CPU/USB/other resources
+
+                running = true;
+
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.init(), done");
+                return this;
+            }
+
+            VisionRunner cleanUp() {
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.cleanUp(), start");
+                portal.close();
+                portal = null;
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.cleanUp(), done");
+
+                return this;
+            }
+
+            public VisionRunner stop() {
+                telemetry.log().add("VisionRunner.stop(): start");
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.stop() start");
+
+                running = false;
+                visionThread.interrupt();
+
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.stop() waiting");
+                while (!stopped) {
+                    try {
+                        Thread.sleep(10);
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.stop() waited");
+
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.stop() cleaning");
+                cleanUp();
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.stop() cleaned");
+
+                RobotLog.ii(GORILLA_CORE, "VisionRunner.stop() done");
+                telemetry.log().add("VisionRunner.stop(): done");
+
+                return this;
+            }
+
+            public synchronized AprilTagDetections detections() {
+                AprilTagDetections result = detections;
+                detections = null;
+                return result;
+            }
+
+            public boolean streaming() {
+                return streaming;
+            }
+
+            public synchronized VisionRunner streaming(boolean value) {
+                streaming = value;
+
+// TODO: Need to wait for portal state to be CAMERA_DEVICE_READY or later.
+//                if (value) {
+//                    portal.resumeStreaming();
+//                } else {
+//                    portal.stopStreaming();
+//                }
+
+                return this;
+            }
+
+            public boolean liveView() {
+                return streaming;
+            }
+
+            public synchronized VisionRunner liveView(boolean value) {
+                liveView = value;
+                if (value) {
+                    portal.resumeLiveView();
+                } else {
+                    portal.stopLiveView();
+                }
+
+                return this;
+            }
+
+            private AprilTagDetections detections;
+
+            private AprilTagProcessor processor;
+
+            private volatile boolean streaming = false;
+
+            private volatile boolean liveView = false;
+
+            private boolean running = false;
+
+            private boolean stopped = true;
+
+            private VisionPortal portal;
+
+            private long RUN_FREQUENCY_MILLIS = 100;
+
+        } // class VisionRunner
+
+        @Override
+        public VisionTask start() {
+            visionThread.start();
+            RobotLog.ii(GORILLA_CORE, "VisionTask.start(), visionThread started: state=%s", visionThread.getState());
+
+            return this;
+        }
+
+        @Override
+        public VisionTask init() {
+            RobotLog.ii(GORILLA_CORE, "VisionTask.init(), start");
+
+            // Run once per second.
+            // This task doesn't really do anything. It's all done by the runner.
+            // This task is just a wrapper to hide the runner, and forward calls to it.
+            // Heck, we could probably run this once an hour and all would be fine.
+            this.frequencyMillis( SECONDS.toMillis(1) );
+            // When no quick tasks are running, then we have to run quick cause otherwise we'll stall
+            // in loop() for so long waiting on this task to run, that we'll delay too long and
+            // stop won't get processed in a timely fashion and then RobotCore will kill us.
+            this.frequencyMillis(50);
+
+            visionRunner.init();
+
+            RobotLog.ii(GORILLA_CORE, "VisionTask.init(), done");
+            telemetry.log().add("VisionTask.init(), done");
+            telemetry.update();
+            return this;
+        }
+
+        public VisionTask stop() {
+            visionRunner.stop();
+
+            return this;
+        }
+
+        public synchronized AprilTagDetections detections() {
+            return visionRunner.detections();
+        }
+        public VisionTask cameraLeft(WebcamName value) {
+            cameraLeft = value;
+
+            return this;
+        }
+
+        public VisionTask cameraRight(WebcamName value) {
+            cameraRight = value;
+
+            return this;
+        }
+
+        public boolean streaming() {
+            return visionRunner.streaming();
+        }
+
+        public synchronized VisionTask streaming(boolean value) {
+            visionRunner.streaming(value);
+
+            return this;
+        }
+        VisionRunner visionRunner = new VisionRunner();
+
+        Thread visionThread = new Thread(visionRunner);
+
+        WebcamName     cameraLeft;
+
+        WebcamName     cameraRight;
+    } // class VisionTask
+
+    PriorityQueue< BotTask<AbstractOpMode<OpModeT>> > tasks;
+
+    // POV Drive
+    double driveSpeed;
+
+    double driveTurn;
+
+    // Tank Drive
+
+    double driveLeftPower;
+
+    double driveRightPower;
+
+    public static final String GORILLA_CORE = "GorillaCore";
+
+
+} // class AbstractOpMode<OpModeT>

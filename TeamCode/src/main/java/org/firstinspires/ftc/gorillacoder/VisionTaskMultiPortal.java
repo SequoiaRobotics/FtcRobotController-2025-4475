@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.gorillacoder;
 
-import static org.firstinspires.ftc.vision.VisionPortal.CameraState.CAMERA_DEVICE_CLOSED;
 import static org.firstinspires.ftc.vision.VisionPortal.CameraState.CAMERA_DEVICE_READY;
 import static org.firstinspires.ftc.vision.VisionPortal.CameraState.STREAMING;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -12,7 +11,6 @@ import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
-import org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessor;
 
 import java.util.ArrayList;
 
@@ -49,43 +47,6 @@ public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisio
             return this;
         }
 
-        protected VisionMultiRunner openVisionResources() {
-
-            int[] viewIds   = VisionPortal.makeMultiPortalView(2, VisionPortal.MultiPortalLayout.HORIZONTAL);
-            int viewIdLeft  = viewIds[0];
-            int viewIdRight = viewIds[1];
-
-            // TODO: Add processor for artifact (and other object) detections?
-            aprilTagProcessorLeft = createAprilTagProcessor();
-            portalLeft = createVisionPortalBuilder()
-                    .setCamera(cameraLeft)
-                    .addProcessors(aprilTagProcessorLeft)
-                    .setLiveViewContainerId(viewIdLeft)
-                    .build();
-
-            aprilTagProcessorRight = createAprilTagProcessor();
-            portalRight = createVisionPortalBuilder()
-                    .setCamera(cameraRight)
-                    .addProcessors(aprilTagProcessorRight)
-                    .setLiveViewContainerId(viewIdRight)
-                    .build();
-
-            waitForPortalState(portalLeft,  STREAMING, 200);
-            waitForPortalState(portalRight, STREAMING, 20);
-
-            return this;
-        }
-
-        @Override
-        protected AbstractVisionRunner closeVisionResources() {
-//            portalLeft.close();
-//            portalRight.close();
-//            waitForPortalState(portalLeft,  CAMERA_DEVICE_CLOSED, 1000);
-//            waitForPortalState(portalRight, CAMERA_DEVICE_CLOSED, 100);
-
-            return this;
-        }
-
         public synchronized VisionMultiRunner streaming(boolean value) {
             streaming = value;
 
@@ -116,14 +77,6 @@ public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisio
             return this;
         }
 
-        private AprilTagProcessor aprilTagProcessorLeft;
-
-        AprilTagProcessor aprilTagProcessorRight;
-
-        private VisionPortal portalLeft;
-
-        private VisionPortal portalRight;
-
     } // class VisionMultiRunner
 
     protected VisionMultiRunner createVisionRunner() {
@@ -148,7 +101,27 @@ public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisio
         // Heck, we could probably run this once an hour and all would be fine.
         this.frequencyMillis(SECONDS.toMillis(1));
 
-        visionRunner.init();
+        int[] viewIds   = VisionPortal.makeMultiPortalView(2, VisionPortal.MultiPortalLayout.HORIZONTAL);
+        int viewIdLeft  = viewIds[0];
+        int viewIdRight = viewIds[1];
+
+        // TODO: Add processor for artifact (and other object) detections?
+        aprilTagProcessorLeft = createAprilTagProcessorBuilder().build();
+        portalLeft = createVisionPortalBuilder()
+                .setCamera(cameraLeft)
+                .addProcessors(aprilTagProcessorLeft)
+                .setLiveViewContainerId(viewIdLeft)
+                .build();
+
+        aprilTagProcessorRight = createAprilTagProcessorBuilder().build();
+        portalRight = createVisionPortalBuilder()
+                .setCamera(cameraRight)
+                .addProcessors(aprilTagProcessorRight)
+                .setLiveViewContainerId(viewIdRight)
+                .build();
+
+        waitForPortalState(portalLeft,  STREAMING, 200);
+        waitForPortalState(portalRight, STREAMING, 20);
 
         RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionTaskMultiPortal.init(), done");
         telemetry.log().add("VisionTaskMultiPortal.init(), done");
@@ -158,6 +131,11 @@ public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisio
 
     public VisionTaskMultiPortal<OpModeT> stop() {
         visionRunner.stop();
+
+//            portalLeft.close();
+//            portalRight.close();
+//            waitForPortalState(portalLeft,  CAMERA_DEVICE_CLOSED, 1000);
+//            waitForPortalState(portalRight, CAMERA_DEVICE_CLOSED, 100);
 
         return this;
     }
@@ -200,12 +178,22 @@ public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisio
 
     WebcamName cameraRight;
 
-    VisionPortal.Builder portalLeft = new VisionPortal.Builder();
+    VisionPortal.Builder portaBuilderlLeft = new VisionPortal.Builder();
 
-    VisionPortal.Builder portalRight = new VisionPortal.Builder();
+    VisionPortal.Builder portalBuilderRight = new VisionPortal.Builder();
+
+    private VisionPortal portalLeft;
+
+    private VisionPortal portalRight;
 
     AprilTagProcessor.Builder atpBuilderLeft = new AprilTagProcessor.Builder();
 
     AprilTagProcessor.Builder atpBuilderRight = new AprilTagProcessor.Builder();
+
+    private AprilTagProcessor aprilTagProcessorLeft;
+
+    AprilTagProcessor aprilTagProcessorRight;
+
+
 
 } // class VisionTaskMultiPortal

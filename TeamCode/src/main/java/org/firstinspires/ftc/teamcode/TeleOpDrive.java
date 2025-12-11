@@ -67,11 +67,17 @@ public class TeleOpDrive extends AbstractOpMode<TeleOpDrive> {
                 .cameraLeft( hardwareMap.get(WebcamName.class, "Webcam Left"))
                 .cameraRight(hardwareMap.get(WebcamName.class, "Webcam Right"));
         telemetry.addData("status", "TeleOpDrive.createTasks(): tasks connected to hardware");
+
         // Need to:
-        // - Create the right a left portal builders and set default config. Bots can always override.
-        // - Create the left and right april tag processor builders and set default config. Bots can always override.
-        // - Create and configure other processor builders. For us blob detectors.
+        // - Create the right and left portal builders and set default config. VisionTask will do this. Bots can always override.
+        // - Create the left and right april tag processor builders and set default config. VisionTask will do this. Bots can always override.
+        // - Create and configure other processor builders. For this game, the blob detectors.
         // - Let VisionTask.init() finish up the init, in particular create the processors and add them to the VisionPortals.
+        // - Get the map from builder to processor and init our processor member variables.
+        ColorBlobLocatorProcessor.Builder CBLPBuilderLeft  = visionTask.createSimpleColorBlobLocatorProcessorBuilder(ARTIFACT_PURPLE);
+        ColorBlobLocatorProcessor.Builder CBLPBuilderRight = visionTask.createSimpleColorBlobLocatorProcessorBuilder(ARTIFACT_GREEN);
+
+//        visionTask.addProcessorBuilders();
 
         @SuppressWarnings("unchecked")
         BotTask<TeleOpDrive>[] result = new BotTask[] {

@@ -1,6 +1,5 @@
 package org.firstinspires.ftc.gorillacoder;
 
-import static org.firstinspires.ftc.vision.VisionPortal.CameraState.CAMERA_DEVICE_CLOSED;
 import static org.firstinspires.ftc.vision.VisionPortal.CameraState.CAMERA_DEVICE_READY;
 import static org.firstinspires.ftc.vision.VisionPortal.CameraState.STREAMING;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -87,29 +86,6 @@ if (true) {return this;}
             return this;
         }
 
-        protected VisionSwitchingRunner openVisionResources() {
-            ClassFactory classFactory = ClassFactory.getInstance();
-            CameraName switchableCamera = classFactory
-                    .getCameraManager().nameForSwitchableCamera(cameraLeft, cameraRight);
-
-            // TODO: Add processor for artifact (and other object) detections?
-            processor = createAprilTagProcessor();
-            portal    = createVisionPortal(switchableCamera, processor);
-            waitForPortalState(portal, STREAMING, 200);
-
-            return this;
-        }
-
-        @Override
-        protected AbstractVisionRunner closeVisionResources() {
-            // TODO: Re-enable tis after testing whether commenting it out keeps the bot from "losing" the camera,
-            // and not finding it when another OpMode is run.
-            // portal.close();
-            // waitForPortalState(portal, CAMERA_DEVICE_CLOSED, 1000);
-
-            return this;
-        }
-
         public synchronized VisionSwitchingRunner streaming(boolean value) {
             streaming = value;
 
@@ -134,9 +110,6 @@ if (true) {return this;}
             return this;
         }
 
-        private AprilTagProcessor processor;
-
-        private VisionPortal portal;
     } // class VisionSwitchingRunner
 
     protected VisionSwitchingRunner createVisionRunner() {
@@ -161,7 +134,14 @@ if (true) {return this;}
         // Heck, we could probably run this once an hour and all would be fine.
         this.frequencyMillis(SECONDS.toMillis(1));
 
-        visionRunner.init();
+        ClassFactory classFactory = ClassFactory.getInstance();
+        CameraName switchableCamera = classFactory
+                .getCameraManager().nameForSwitchableCamera(cameraLeft, cameraRight);
+
+        // TODO: Add processor for artifact (and other object) detections?
+        processor = createAprilTagProcessorBuilder().build();
+        portal    = createVisionPortal(switchableCamera, processor);
+        waitForPortalState(portal, STREAMING, 200);
 
         RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionTaskSwitchingCameras.init(), done");
         telemetry.log().add("VisionTaskSwitchingCameras.init(), done");
@@ -171,6 +151,11 @@ if (true) {return this;}
 
     public VisionTaskSwitchingCameras<OpModeT> stop() {
         visionRunner.stop();
+
+        // TODO: Re-enable tis after testing whether commenting it out keeps the bot from "losing" the camera,
+        // and not finding it when another OpMode is run.
+//         portal.close();
+//         waitForPortalState(portal, CAMERA_DEVICE_CLOSED, 1000);
 
         return this;
     }
@@ -208,4 +193,9 @@ if (true) {return this;}
     WebcamName cameraLeft;
 
     WebcamName cameraRight;
+
+    private VisionPortal portal;
+
+    private AprilTagProcessor processor;
+
 } // class VisionTaskSwitchingCameras

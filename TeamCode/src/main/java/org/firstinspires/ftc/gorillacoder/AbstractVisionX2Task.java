@@ -1,7 +1,6 @@
 package org.firstinspires.ftc.gorillacoder;
 
 import static org.firstinspires.ftc.vision.VisionPortal.StreamFormat.MJPEG;
-import static java.util.concurrent.TimeUnit.SECONDS;
 
 import android.graphics.Color;
 
@@ -19,6 +18,7 @@ import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 import org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessor;
 import org.firstinspires.ftc.vision.opencv.ColorRange;
 import org.firstinspires.ftc.vision.opencv.ImageRegion;
+import org.firstinspires.ftc.vision.opencv.PredominantColorProcessor;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -96,12 +96,6 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
         @SuppressWarnings("UnusedReturnValue")
         protected abstract AbstractVisionRunner loop();
 
-        @SuppressWarnings("UnusedReturnValue")
-        protected abstract AbstractVisionRunner openVisionResources();
-
-        @SuppressWarnings("UnusedReturnValue")
-        protected abstract AbstractVisionRunner closeVisionResources();
-
         @Override
         public void run() {
             long time0 = System.currentTimeMillis();
@@ -132,106 +126,12 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
                 }
             }
             RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionRunner.run resources closing");
-            closeVisionResources();
             RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionRunner.run resources closed");
 
             stopped = true;
             RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionRunner.run done");
             telemetry.log().add("AbstractVisionRunner.run(): done");
 
-        }
-
-        protected AprilTagProcessor createAprilTagProcessor() {
-            return new AprilTagProcessor.Builder()
-                    // .setTagLibrary(tagLibrary)
-                    .setDrawAxes(true)
-                    .setDrawCubeProjection(true)
-                    // TODO: set where the camera is on the bot
-                    //    private Position cameraPosition = new Position(DistanceUnit.INCH,
-                    //            0, 0, 0, 0);
-                    //    private YawPitchRollAngles cameraOrientation = new YawPitchRollAngles(AngleUnit.DEGREES,
-                    //            0, -90, 0, 0);
-                    // .setCameraPose(cameraPosition, cameraOrientation)
-                    .build();
-        }
-
-        protected VisionPortal.Builder createVisionPortalBuilder() {
-            return new VisionPortal.Builder()
-                    .setStreamFormat(MJPEG)
-                    // Each resolution, for each camera model, needs calibration values for good pose estimation.
-                    // .setCameraResolution(new Size(640, 480))
-                    .setAutoStartStreamOnBuild(true)
-                    .enableLiveView(true)
-                    .setAutoStopLiveView(true)
-                    .setShowStatsOverlay(true);
-        }
-
-        protected VisionPortal createVisionPortal(CameraName camera, AprilTagProcessor processor) {
-            // Consider: adding additional AprilTag library(ies)
-            // AprilTagLibrary tagLibrary = ...
-            // TODO: Add support for calibration. Needed for non/semi supported cameras like the arducam.
-            //       The Logitech C920 is well supported with built in calibrations for:
-            //       320x240, 352x288, 432x240, 640x360, 640x480, 800x448, 800x600, 864x480, 960x720,
-            //       1024x576, 1280x720, 1600x896, 1920x1080, 2304x1296, 2304x1536
-                return createVisionPortalBuilder()
-                        .setCamera(camera)
-                        .addProcessors(processor)
-                        .build();
-        }
-
-        @SuppressWarnings("UnusedReturnValue")
-        protected AbstractVisionRunner waitForPortalState(VisionPortal portal, VisionPortal.CameraState stateToWaitFor, long maxWaitCount) {
-            RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionX2Task.waitForPortalState(portal, %d/%s, %d) check if cameras ready: state=%d/%s",
-                    stateToWaitFor.ordinal(), stateToWaitFor, maxWaitCount, portal.getCameraState().ordinal(), portal.getCameraState()
-            );
-
-            // TODO: write waitFor( condition:lambda, checkDelay, limit, tag, label);
-            long waitTime0 = System.currentTimeMillis();
-            long waitCount = 0;
-            for (VisionPortal.CameraState state = portal.getCameraState();
-                 state.ordinal() < stateToWaitFor.ordinal();
-                 state = portal.getCameraState()
-            ) {
-                waitCount++;
-                if (maxWaitCount < waitCount) {
-                    String message = String.format("AbstractVisionX2Task.waitForPortalState(portal, %d/%s, %d) abort portal is not ready: state=%d/%s",
-                            stateToWaitFor.ordinal(), stateToWaitFor, maxWaitCount, state.ordinal(), state
-                    );
-                    throw new RuntimeException(message);
-                }
-                String message = String.format("AbstractVisionX2Task.waitForPortalState(portal, %d/%s, %d) waiting for portal to be ready, calling sleepUntil until next iteration: waitCount=%d state=%d/%s",
-                        stateToWaitFor.ordinal(), stateToWaitFor, maxWaitCount, waitCount, state.ordinal(), state
-                );
-                RobotLog.ii(AbstractOpMode.GORILLA_CORE, message);
-                opMode.sleepUntil(AbstractOpMode.GORILLA_CORE, "AbstractVisionX2Task.waitForPortalState waiting for portal to be ready", System.currentTimeMillis() + 20);
-            }
-            VisionPortal.CameraState state        = portal.getCameraState();
-            long                     waitDuration = System.currentTimeMillis() - waitTime0;
-            if (!stateToWaitFor.equals(state)) {
-                String message = String.format("AbstractVisionX2Task.waitForPortalState(%s), abort: portal state is %s after %dms", stateToWaitFor, state, waitDuration);
-                RobotLog.ii(AbstractOpMode.GORILLA_CORE, message);
-                telemetry.log().add(message);
-                throw new RuntimeException(message);
-            }
-            String message = String.format("AbstractVisionX2Task.waitForPortalState(%s), done: portal state is %s after %dms", stateToWaitFor, state, waitDuration);
-            RobotLog.ii(AbstractOpMode.GORILLA_CORE, message);
-            telemetry.log().add(message);
-
-            return this;
-        }
-
-        protected AbstractVisionRunner init() {
-            RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionRunner.init(), start");
-
-            openVisionResources();
-
-            // TODO: We really need to have a state variable:
-            // created, initializing, initialized, starting, running, stopping, cleaning, stopped.,
-            stopped = true;
-            running = false;
-
-            RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionRunner.init(), done");
-            return this;
         }
 
         @SuppressWarnings("UnusedReturnValue")
@@ -287,6 +187,9 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
 
         protected volatile boolean liveView = false;
 
+        // TODO: We really need to have a state variable:
+        // created, initializing, initialized, starting, running, stopping, cleaning, stopped.,
+
         private boolean running = false;
 
         private boolean stopped = true;
@@ -296,6 +199,87 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
     } // class AbstractVisionRunner
 
     protected abstract AbstractVisionRunner createVisionRunner();
+
+    //  TODO: Move to AprilTagProcessorBuilder below.
+    protected AprilTagProcessor.Builder createAprilTagProcessorBuilder() {
+        return new AprilTagProcessor.Builder()
+                // .setTagLibrary(tagLibrary)
+                .setDrawAxes(true)
+                .setDrawCubeProjection(true)
+                // TODO: set where the camera is on the bot
+                //    private Position cameraPosition = new Position(DistanceUnit.INCH,
+                //            0, 0, 0, 0);
+                //    private YawPitchRollAngles cameraOrientation = new YawPitchRollAngles(AngleUnit.DEGREES,
+                //            0, -90, 0, 0);
+                // .setCameraPose(cameraPosition, cameraOrientation)
+                ;
+    }
+
+    //  TODO: Move to AprilTagProcessorBuilder below.
+    protected VisionPortal.Builder createVisionPortalBuilder() {
+        return new VisionPortal.Builder()
+                .setStreamFormat(MJPEG)
+                // Each resolution, for each camera model, needs calibration values for good pose estimation.
+                // .setCameraResolution(new Size(640, 480))
+                .setAutoStartStreamOnBuild(true)
+                .enableLiveView(true)
+                .setAutoStopLiveView(true)
+                .setShowStatsOverlay(true);
+    }
+
+    protected VisionPortal createVisionPortal(CameraName camera, AprilTagProcessor processor) {
+        // Consider: adding additional AprilTag library(ies)
+        // AprilTagLibrary tagLibrary = ...
+        // TODO: Add support for calibration. Needed for non/semi supported cameras like the arducam.
+        //       The Logitech C920 is well supported with built in calibrations for:
+        //       320x240, 352x288, 432x240, 640x360, 640x480, 800x448, 800x600, 864x480, 960x720,
+        //       1024x576, 1280x720, 1600x896, 1920x1080, 2304x1296, 2304x1536
+        return createVisionPortalBuilder()
+                .setCamera(camera)
+                .addProcessors(processor)
+                .build();
+    }
+
+    @SuppressWarnings("UnusedReturnValue")
+    protected AbstractVisionX2Task<OpModeT> waitForPortalState(VisionPortal portal, VisionPortal.CameraState stateToWaitFor, long maxWaitCount) {
+        RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionX2Task.waitForPortalState(portal, %d/%s, %d) check if cameras ready: state=%d/%s",
+                stateToWaitFor.ordinal(), stateToWaitFor, maxWaitCount, portal.getCameraState().ordinal(), portal.getCameraState()
+        );
+
+        // TODO: write waitFor( condition:lambda, checkDelay, limit, tag, label);
+        long waitTime0 = System.currentTimeMillis();
+        long waitCount = 0;
+        for (VisionPortal.CameraState state = portal.getCameraState();
+             state.ordinal() < stateToWaitFor.ordinal();
+             state = portal.getCameraState()
+        ) {
+            waitCount++;
+            if (maxWaitCount < waitCount) {
+                String message = String.format("AbstractVisionX2Task.waitForPortalState(portal, %d/%s, %d) abort portal is not ready: state=%d/%s",
+                        stateToWaitFor.ordinal(), stateToWaitFor, maxWaitCount, state.ordinal(), state
+                );
+                throw new RuntimeException(message);
+            }
+            String message = String.format("AbstractVisionX2Task.waitForPortalState(portal, %d/%s, %d) waiting for portal to be ready, calling sleepUntil until next iteration: waitCount=%d state=%d/%s",
+                    stateToWaitFor.ordinal(), stateToWaitFor, maxWaitCount, waitCount, state.ordinal(), state
+            );
+            RobotLog.ii(AbstractOpMode.GORILLA_CORE, message);
+            opMode.sleepUntil(AbstractOpMode.GORILLA_CORE, "AbstractVisionX2Task.waitForPortalState waiting for portal to be ready", System.currentTimeMillis() + 20);
+        }
+        VisionPortal.CameraState state        = portal.getCameraState();
+        long                     waitDuration = System.currentTimeMillis() - waitTime0;
+        if (!stateToWaitFor.equals(state)) {
+            String message = String.format("AbstractVisionX2Task.waitForPortalState(%s), abort: portal state is %s after %dms", stateToWaitFor, state, waitDuration);
+            RobotLog.ii(AbstractOpMode.GORILLA_CORE, message);
+            telemetry.log().add(message);
+            throw new RuntimeException(message);
+        }
+        String message = String.format("AbstractVisionX2Task.waitForPortalState(%s), done: portal state is %s after %dms", stateToWaitFor, state, waitDuration);
+        RobotLog.ii(AbstractOpMode.GORILLA_CORE, message);
+        telemetry.log().add(message);
+
+        return this;
+    }
 
     public ColorBlobLocatorProcessor.Builder createSimpleColorBlobLocatorProcessorBuilder(ColorRange color) {
         // TODO: Split out only build, from build and add simple config, etc
@@ -441,6 +425,46 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
     public static class AprilTagDetections {
         public List<AprilTagDetection> right;
         public List<AprilTagDetection> left;
+    }
+
+    public interface ProcessorBuilder<T> {
+        T build();
+    } // interface ProcessorBuilder<T>
+
+    public static class AprilTagProcessorBuilder implements ProcessorBuilder<AprilTagProcessor> {
+        public AprilTagProcessorBuilder(AprilTagProcessor.Builder builder){
+            this.builder = builder;
+        }
+
+        public AprilTagProcessor build() {
+            return builder.build();
+        }
+
+        private final AprilTagProcessor.Builder builder;
+    }
+
+    public static class ColorBlobLocatorProcessorBuilder implements ProcessorBuilder<ColorBlobLocatorProcessor> {
+        public ColorBlobLocatorProcessorBuilder(ColorBlobLocatorProcessor.Builder builder){
+            this.builder = builder;
+        }
+
+        public ColorBlobLocatorProcessor build() {
+            return builder.build();
+        }
+
+        private final ColorBlobLocatorProcessor.Builder builder;
+    }
+
+    public static class PredominantColorProcessorBuilder implements ProcessorBuilder<PredominantColorProcessor> {
+        public PredominantColorProcessorBuilder(PredominantColorProcessor.Builder builder){
+            this.builder = builder;
+        }
+
+        public PredominantColorProcessor build() {
+            return builder.build();
+        }
+
+        private final PredominantColorProcessor.Builder builder;
     }
 
     public ConcurrentHashMap<Integer, AprilTagDetection> targetDetectionsLeft = new ConcurrentHashMap<>();

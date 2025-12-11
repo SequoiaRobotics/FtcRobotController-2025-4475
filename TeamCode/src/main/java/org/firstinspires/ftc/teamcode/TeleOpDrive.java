@@ -2,20 +2,20 @@ package org.firstinspires.ftc.teamcode;
 
 import static org.firstinspires.ftc.vision.opencv.ColorRange.ARTIFACT_GREEN;
 import static org.firstinspires.ftc.vision.opencv.ColorRange.ARTIFACT_PURPLE;
+import static org.firstinspires.ftc.gorillacoder.AbstractVisionX2Task.ColorBlobLocatorProcessorBuilder;
 
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 
+import org.firstinspires.ftc.gorillacoder.AbstractBotTask;
+import org.firstinspires.ftc.gorillacoder.AbstractOpMode;
+import org.firstinspires.ftc.gorillacoder.AbstractVisionX2Task;
+import org.firstinspires.ftc.gorillacoder.BotTask;
 import org.firstinspires.ftc.gorillacoder.DrivePovTask;
 import org.firstinspires.ftc.gorillacoder.DriveTankTask;
 import org.firstinspires.ftc.gorillacoder.VisionTaskMultiPortal;
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
-import org.firstinspires.ftc.gorillacoder.AbstractBotTask;
-import org.firstinspires.ftc.gorillacoder.AbstractOpMode;
-import org.firstinspires.ftc.gorillacoder.AbstractVisionX2Task;
-import org.firstinspires.ftc.gorillacoder.BotTask;
-import org.firstinspires.ftc.gorillacoder.VisionTaskSwitchingCameras;
 import org.firstinspires.ftc.vision.opencv.ColorBlobLocatorProcessor;
 
 @SuppressWarnings("unused")
@@ -68,17 +68,6 @@ public class TeleOpDrive extends AbstractOpMode<TeleOpDrive> {
                 .cameraRight(hardwareMap.get(WebcamName.class, "Webcam Right"));
         telemetry.addData("status", "TeleOpDrive.createTasks(): tasks connected to hardware");
 
-        // Need to:
-        // - Create the right and left portal builders and set default config. VisionTask will do this. Bots can always override.
-        // - Create the left and right april tag processor builders and set default config. VisionTask will do this. Bots can always override.
-        // - Create and configure other processor builders. For this game, the blob detectors.
-        // - Let VisionTask.init() finish up the init, in particular create the processors and add them to the VisionPortals.
-        // - Get the map from builder to processor and init our processor member variables.
-        ColorBlobLocatorProcessor.Builder CBLPBuilderLeft  = visionTask.createSimpleColorBlobLocatorProcessorBuilder(ARTIFACT_PURPLE);
-        ColorBlobLocatorProcessor.Builder CBLPBuilderRight = visionTask.createSimpleColorBlobLocatorProcessorBuilder(ARTIFACT_GREEN);
-
-//        visionTask.addProcessorBuilders();
-
         @SuppressWarnings("unchecked")
         BotTask<TeleOpDrive>[] result = new BotTask[] {
                 visionTask,
@@ -89,19 +78,23 @@ public class TeleOpDrive extends AbstractOpMode<TeleOpDrive> {
         return result;
     }
 
-//    protected TeleOpDrive init2() {
-//        ColorBlobLocatorProcessor.Builder rightCBLR = visionTask.createSimpleColorBlobLocatorProcessorBuilder(ARTIFACT_GREEN);
-//                ;
-//        ColorBlobLocatorProcessor.Builder leftCBLR = visionTask.createSimpleColorBlobLocatorProcessorBuilder(ARTIFACT_PURPLE);
-//                ;
-//        //
-//
-//        // visionTask.buildPortal();
-//
-//        return this;
-//    }
+    @Override
+    protected TeleOpDrive addVisionProcessors() {
+        // Need to:
+        // - Create the right and left portal builders and set default config. VisionTask will do this. Bots can always override.
+        // - Create the left and right april tag processor builders and set default config. VisionTask will do this. Bots can always override.
+        // - Create and configure other processor builders. For this game, the blob detectors.
+        // - Let VisionTask.init() finish up the init, in particular create the processors and add them to the VisionPortals.
+        // - Get the map from builder to processor and init our processor member variables.
+        ColorBlobLocatorProcessor.Builder CBLPBuilderLeft  = visionTask.createCircleColorBlobLocatorProcessorBuilder(ARTIFACT_PURPLE);
+        ColorBlobLocatorProcessor.Builder CBLPBuilderRight = visionTask.createCircleColorBlobLocatorProcessorBuilder(ARTIFACT_GREEN);
 
-//    protected AbstractVisionX2Task<TeleOpDrive> visionTask   = new VisionTaskSwitchingCameras<>();
+        visionTask.addProcessorLeft(CBLPBuilderLeft.build());
+        visionTask.addProcessorRight(CBLPBuilderRight.build());
+
+        return this;
+    }
+
     protected AbstractVisionX2Task<TeleOpDrive> visionTask   = new VisionTaskMultiPortal<>();
 
     protected DrivePovTask<TeleOpDrive>         drivePovTask = new DrivePovTask<>();

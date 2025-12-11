@@ -4,20 +4,34 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.HardwareDevice;
 import com.qualcomm.robotcore.util.RobotLog;
 
+import org.firstinspires.ftc.vision.VisionProcessor;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.PriorityQueue;
 import java.util.function.Supplier;
 
 public abstract class AbstractOpMode<OpModeT extends OpMode> extends OpMode {
 
+    /** Subclasses should override if they need to add vision processors to their VisionTask. */
+    protected AbstractOpMode<OpModeT> addVisionProcessors() {
+        return this;
+    }
+
+    // TODO: KIll this. It's too complicated. And OpModes need to know their tasks, so tey are already just creating them.
+    //  Sure, we could give the tasks names so the OpMode could look them up after they were built ... but why.
+    //  KISS, unless it's demonstrably needed. It isn't.
     @SuppressWarnings("UnusedReturnValue")
     public AbstractOpMode<OpModeT> tasks(Object... value)
-            throws BotTaskBuilder.Exception, ClassNotFoundException, IllegalAccessException, InstantiationException {
+            throws BotTaskBuilder.Exception, ClassNotFoundException, IllegalAccessException, InstantiationException
+    {
         BotTaskBuilder<AbstractOpMode<OpModeT>> builder = (new BotTaskBuilder<AbstractOpMode<OpModeT>>()).opMode(this);
         // TODO: Always include a KeepReactiveTask that does nothing but run every few millis.
         // This will ensure that loop() does not hang for long when it calls sleepUntil, ensuring that the bot quickly exits when told to stop.
         // Otherwise, the RC App WILL notice, and it will forcibly kill the OpMode and the restart the bot.
         // Devastating if that happens at the end of Auto period. Bot will be dead in the water at the start of TeleOp period.
-        tasks = new PriorityQueue<>(builder.addTasks(value).tasks());
+        tasks = new PriorityQueue<>( builder.addTasks(value).tasks() );
 
         return this;
     }

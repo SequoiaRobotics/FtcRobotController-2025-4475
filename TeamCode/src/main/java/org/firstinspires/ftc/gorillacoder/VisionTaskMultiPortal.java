@@ -10,6 +10,7 @@ import com.qualcomm.robotcore.util.RobotLog;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.Position;
 import org.firstinspires.ftc.vision.VisionPortal;
+import org.firstinspires.ftc.vision.VisionProcessor;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 import java.util.ArrayList;
@@ -107,21 +108,28 @@ public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisio
 
         // TODO: Add processor for artifact (and other object) detections?
         aprilTagProcessorLeft = createAprilTagProcessorBuilder().build();
-        portalLeft = createVisionPortalBuilder()
+        portalBuilderLeft = createVisionPortalBuilder()
                 .setCamera(cameraLeft)
                 .addProcessors(aprilTagProcessorLeft)
                 .setLiveViewContainerId(viewIdLeft)
-                .build();
+                ;
 
         aprilTagProcessorRight = createAprilTagProcessorBuilder().build();
-        portalRight = createVisionPortalBuilder()
+        portalBuilderRight = createVisionPortalBuilder()
                 .setCamera(cameraRight)
                 .addProcessors(aprilTagProcessorRight)
                 .setLiveViewContainerId(viewIdRight)
-                .build();
+                ;
 
+        opMode.addVisionProcessors();
+        portalLeft  = portalBuilderLeft.build();
+        portalRight = portalBuilderRight.build();
+
+        // The portals init async and in parallel.
+        // If the right finishes first, then there will be no wait.
+        // If the left finishes first, give the right just a bit longer to finish.
         waitForPortalState(portalLeft,  STREAMING, 200);
-        waitForPortalState(portalRight, STREAMING, 20);
+        waitForPortalState(portalRight, STREAMING, 50);
 
         RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionTaskMultiPortal.init(), done");
         telemetry.log().add("VisionTaskMultiPortal.init(), done");
@@ -137,6 +145,18 @@ public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisio
 //            waitForPortalState(portalLeft,  CAMERA_DEVICE_CLOSED, 1000);
 //            waitForPortalState(portalRight, CAMERA_DEVICE_CLOSED, 100);
 
+        return this;
+    }
+
+    @SuppressWarnings("UnusedReturnValue")
+    public AbstractVisionX2Task<OpModeT> addProcessorLeft(VisionProcessor processor) {
+        portalBuilderLeft.addProcessor(processor);
+        return this;
+    }
+
+    @SuppressWarnings("UnusedReturnValue")
+    public AbstractVisionX2Task<OpModeT> addProcessorRight(VisionProcessor processor) {
+        portalBuilderRight.addProcessor(processor);
         return this;
     }
 
@@ -178,7 +198,7 @@ public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisio
 
     WebcamName cameraRight;
 
-    VisionPortal.Builder portaBuilderlLeft = new VisionPortal.Builder();
+    VisionPortal.Builder portalBuilderLeft = new VisionPortal.Builder();
 
     VisionPortal.Builder portalBuilderRight = new VisionPortal.Builder();
 

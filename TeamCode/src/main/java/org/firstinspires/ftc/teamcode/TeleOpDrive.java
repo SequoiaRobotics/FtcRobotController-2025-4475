@@ -86,11 +86,14 @@ public class TeleOpDrive extends AbstractOpMode<TeleOpDrive> {
         // - Create and configure other processor builders. For this game, the blob detectors.
         // - Let VisionTask.init() finish up the init, in particular create the processors and add them to the VisionPortals.
         // - Get the map from builder to processor and init our processor member variables.
-        ColorBlobLocatorProcessor.Builder CBLPBuilderLeft  = visionTask.createCircleColorBlobLocatorProcessorBuilder(ARTIFACT_PURPLE);
-        ColorBlobLocatorProcessor.Builder CBLPBuilderRight = visionTask.createCircleColorBlobLocatorProcessorBuilder(ARTIFACT_GREEN);
+        ColorBlobLocatorProcessor.Builder cblpBuilderLeft  = visionTask.createCircleColorBlobLocatorProcessorBuilder(ARTIFACT_PURPLE);
+        ColorBlobLocatorProcessor.Builder cblpBuilderRight = visionTask.createCircleColorBlobLocatorProcessorBuilder(ARTIFACT_GREEN);
 
-        visionTask.addProcessorLeft(CBLPBuilderLeft.build());
-        visionTask.addProcessorRight(CBLPBuilderRight.build());
+        cblpLeft  = cblpBuilderLeft.build();
+        cblpRight = cblpBuilderRight.build();
+
+        visionTask.addProcessorLeft(cblpLeft);
+        visionTask.addProcessorRight(cblpRight);
 
         return this;
     }
@@ -102,5 +105,9 @@ public class TeleOpDrive extends AbstractOpMode<TeleOpDrive> {
     protected DriveTankTask<TeleOpDrive>        driveTankTask = new DriveTankTask<>();
 
     protected GamePadTask                       gamePadTask  = new GamePadTask();
+
+    ColorBlobLocatorProcessor                   cblpLeft;
+
+    ColorBlobLocatorProcessor                   cblpRight;
 
 } // class TeleOpDrive

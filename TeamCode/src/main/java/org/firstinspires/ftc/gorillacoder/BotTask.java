@@ -9,7 +9,9 @@ import java.util.Comparator;
 
 public interface BotTask<OpModeT extends OpMode> extends Comparable<BotTask<OpModeT>> {
 
-    BotTask<OpModeT> run();
+    BotTask<OpModeT> waitForStart();
+
+    BotTask<OpModeT>  run();
 
     BotTask<OpModeT>  init();
 

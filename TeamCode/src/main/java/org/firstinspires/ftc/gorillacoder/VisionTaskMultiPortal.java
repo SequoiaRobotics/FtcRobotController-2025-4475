@@ -14,37 +14,40 @@ import org.firstinspires.ftc.vision.VisionProcessor;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
 
 import java.util.ArrayList;
+import java.util.Collections;
 
 public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisionX2Task<OpModeT> {
 
     protected class VisionMultiRunner extends AbstractVisionRunner {
         public synchronized VisionMultiRunner loop() {
             // Collect the detections that are fresh, update info, switch cameras, done.
-            telemetry.addData("left  state", portalLeft.getCameraState());
-            telemetry.addData("right state", portalRight.getCameraState());
 
-            if (!STREAMING.equals(portalLeft.getCameraState())) return this;
-            if (!STREAMING.equals(portalRight.getCameraState())) return this;
+            if ( !portalLeft .getCameraState().equals(STREAMING) ) return this;
+            if ( !portalRight.getCameraState().equals(STREAMING) ) return this;
 
             AprilTagDetections currentDetections = new AprilTagDetections();
-            RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionRunner.run left camera state=%s", portalLeft.getCameraState());
-            RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionRunner.run right camera state=%s", portalLeft.getCameraState());
-            currentDetections.left = aprilTagProcessorLeft.getFreshDetections();
-            if (null == currentDetections.left) {
-                currentDetections.left = new ArrayList<>();
-            }
-            updateDetections(targetDetectionsLeft, "Left", currentDetections.left);
+            RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionRunner.run  left camera state=%s", portalLeft .getCameraState());
+            RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionRunner.run right camera state=%s", portalRight.getCameraState());
 
+            currentDetections.left  = aprilTagProcessorLeft .getFreshDetections();
             currentDetections.right = aprilTagProcessorRight.getFreshDetections();
-            if (null == currentDetections.right) {
-                currentDetections.right = new ArrayList<>();
+
+            if ( null == currentDetections.left  ) {
+                currentDetections.left  = Collections.emptyList();
             }
+            if ( null == currentDetections.right ) {
+                currentDetections.right = Collections.emptyList();
+            }
+            opMode.onFreshDetections("Left",  currentDetections.left);
+            opMode.onFreshDetections("Right", currentDetections.right);
+
+            updateDetections(targetDetectionsLeft,  "Left",  currentDetections.left);
             updateDetections(targetDetectionsRight, "Right", currentDetections.right);
 
             synchronized (this) {
                 detections = currentDetections;
             }
-            
+
             return this;
         }
 
@@ -85,14 +88,6 @@ public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisio
     }
 
     @Override
-    public VisionTaskMultiPortal<OpModeT> start() {
-        visionThread.start();
-        RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionTaskMultiPortal.start(), visionThread started: state=%s", visionThread.getState());
-
-        return this;
-    }
-
-    @Override
     public VisionTaskMultiPortal<OpModeT> init() {
         RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionTaskMultiPortal.init(), start");
 
@@ -102,26 +97,31 @@ public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisio
         // Heck, we could probably run this once an hour and all would be fine.
         this.frequencyMillis(SECONDS.toMillis(1));
 
-        int[] viewIds   = VisionPortal.makeMultiPortalView(2, VisionPortal.MultiPortalLayout.HORIZONTAL);
+        int viewIds[]   = VisionPortal.makeMultiPortalView(2, VisionPortal.MultiPortalLayout.HORIZONTAL);
         int viewIdLeft  = viewIds[0];
         int viewIdRight = viewIds[1];
 
         // TODO: Add processor for artifact (and other object) detections?
-        aprilTagProcessorLeft = createAprilTagProcessorBuilder().build();
         portalBuilderLeft = createVisionPortalBuilder()
                 .setCamera(cameraLeft)
-                .addProcessors(aprilTagProcessorLeft)
                 .setLiveViewContainerId(viewIdLeft)
                 ;
-
-        aprilTagProcessorRight = createAprilTagProcessorBuilder().build();
         portalBuilderRight = createVisionPortalBuilder()
                 .setCamera(cameraRight)
-                .addProcessors(aprilTagProcessorRight)
                 .setLiveViewContainerId(viewIdRight)
                 ;
 
+        atpBuilderLeft  = createAprilTagProcessorBuilder();
+        atpBuilderRight = createAprilTagProcessorBuilder();
+        opMode.configureAprilTagProcessors();
+
+        aprilTagProcessorLeft  = atpBuilderLeft.build();
+        aprilTagProcessorRight = atpBuilderRight.build();
+        portalBuilderLeft.addProcessors(aprilTagProcessorLeft);
+        portalBuilderRight.addProcessors(aprilTagProcessorRight);
+
         opMode.addVisionProcessors();
+
         portalLeft  = portalBuilderLeft.build();
         portalRight = portalBuilderRight.build();
 
@@ -131,20 +131,10 @@ public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisio
         waitForPortalState(portalLeft,  STREAMING, 200);
         waitForPortalState(portalRight, STREAMING, 50);
 
+        visionThread.start();
+        RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionTaskMultiPortal.start(), visionThread started: state=%s", visionThread.getState());
+
         RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionTaskMultiPortal.init(), done");
-        telemetry.log().add("VisionTaskMultiPortal.init(), done");
-        telemetry.update();
-        return this;
-    }
-
-    public VisionTaskMultiPortal<OpModeT> stop() {
-        visionRunner.stop();
-
-//            portalLeft.close();
-//            portalRight.close();
-//            waitForPortalState(portalLeft,  CAMERA_DEVICE_CLOSED, 1000);
-//            waitForPortalState(portalRight, CAMERA_DEVICE_CLOSED, 100);
-
         return this;
     }
 
@@ -160,60 +150,24 @@ public class VisionTaskMultiPortal<OpModeT extends OpMode> extends AbstractVisio
         return this;
     }
 
-    public synchronized AprilTagDetections detections() {
-        return visionRunner.detections();
-    }
-
-    public VisionTaskMultiPortal<OpModeT> cameraLeft(WebcamName value) {
-        cameraLeft = value;
-
-        return this;
-    }
-
-    public VisionTaskMultiPortal<OpModeT> cameraRight(WebcamName value) {
-        cameraRight = value;
-
-        return this;
-    }
-
-    public boolean streaming() {
-        return visionRunner.streaming();
-    }
-
-    public synchronized VisionTaskMultiPortal<OpModeT> streaming(boolean value) {
-        visionRunner.streaming(value);
-
-        return this;
-    }
-
     public Position botFieldPosition;
 
 //    public Pose
-
-    VisionMultiRunner visionRunner = new VisionMultiRunner();
-
-    Thread visionThread = new Thread(visionRunner);
-
-    WebcamName cameraLeft;
-
-    WebcamName cameraRight;
 
     VisionPortal.Builder portalBuilderLeft = new VisionPortal.Builder();
 
     VisionPortal.Builder portalBuilderRight = new VisionPortal.Builder();
 
-    private VisionPortal portalLeft;
+    public VisionPortal portalLeft;
 
-    private VisionPortal portalRight;
+    public VisionPortal portalRight;
 
-    AprilTagProcessor.Builder atpBuilderLeft = new AprilTagProcessor.Builder();
+    public AprilTagProcessor.Builder atpBuilderLeft = new AprilTagProcessor.Builder();
 
-    AprilTagProcessor.Builder atpBuilderRight = new AprilTagProcessor.Builder();
+    public AprilTagProcessor.Builder atpBuilderRight = new AprilTagProcessor.Builder();
 
-    private AprilTagProcessor aprilTagProcessorLeft;
+    AprilTagProcessor aprilTagProcessorLeft;
 
     AprilTagProcessor aprilTagProcessorRight;
-
-
 
 } // class VisionTaskMultiPortal

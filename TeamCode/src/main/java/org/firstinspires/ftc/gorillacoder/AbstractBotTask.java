@@ -2,11 +2,17 @@ package org.firstinspires.ftc.gorillacoder;
 
 import com.qualcomm.robotcore.eventloop.opmode.*;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.util.ElapsedTime;
 
 import org.firstinspires.ftc.robotcore.external.Telemetry;
 
 public abstract class AbstractBotTask<OpModeT extends OpMode> implements BotTask<OpModeT> {
+
+
+    @Override
+    public BotTask<OpModeT>  waitForStart() {
+        return this;
+    }
+
     @Override
     public BotTask<OpModeT>  run() {
         return this;
@@ -87,8 +93,6 @@ public abstract class AbstractBotTask<OpModeT extends OpMode> implements BotTask
 
         return this;
     }
-
-    protected final ElapsedTime runtime = new ElapsedTime();
 
     protected OpModeT opMode;
 

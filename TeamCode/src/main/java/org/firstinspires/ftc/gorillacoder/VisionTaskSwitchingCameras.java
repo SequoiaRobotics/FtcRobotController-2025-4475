@@ -28,7 +28,6 @@ public class VisionTaskSwitchingCameras<OpModeT extends OpMode> extends Abstract
 
             // TODO: Stay more responsive. Each time through loop do just one camera.
             // Collect the detections that are fresh, update info, switch cameras, done.
-            telemetry.addData("portal state", portal.getCameraState());
             AprilTagDetections currentDetections = new AprilTagDetections();
             RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionSwitchingRunner.run state=%s camera=%s", portal.getCameraState(), portal.getActiveCamera());
             currentDetections.left = processor.getFreshDetections();
@@ -63,11 +62,9 @@ if (true) {return this;}
             long waitDuration = System.currentTimeMillis() - waitTime0;
             if (!STREAMING.equals(portal.getCameraState())) {
                 RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionSwitchingRunner.loop(), abort because portal is not streaming after switching");
-                telemetry.log().add("VisionSwitchingRunner.loop(), early exit because portal is not streaming after switching");
                 throw new RuntimeException(String.format("VisionSwitchingRunner.loop(), early exit because portal is not streaming after switching: count=%d duration=%d", waitCount, waitDuration));
             }
             RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionSwitchingRunner.loop() portal ready after switching: wait=%d/%dms state=%s camera=%s", waitCount, waitDuration, portal.getCameraState(), portal.getActiveCamera());
-            telemetry.log().add("VisionSwitchingRunner.loop() portal ready after switching: waitCount=%d state=%s camera=%s", waitCount, portal.getCameraState(), portal.getActiveCamera());
 
             currentDetections.right = processor.getFreshDetections();
             if (null == currentDetections.right) {
@@ -117,14 +114,6 @@ if (true) {return this;}
     }
 
     @Override
-    public VisionTaskSwitchingCameras<OpModeT> start() {
-        visionThread.start();
-        RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionTaskSwitchingCameras.start(), visionThread started: state=%s", visionThread.getState());
-
-        return this;
-    }
-
-    @Override
     public VisionTaskSwitchingCameras<OpModeT> init() {
         RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionTaskSwitchingCameras.init(), start");
 
@@ -143,41 +132,11 @@ if (true) {return this;}
         portal    = createVisionPortal(switchableCamera, processor);
         waitForPortalState(portal, STREAMING, 200);
 
+        visionThread.start();
+        RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionTaskSwitchingCameras.start(), visionThread started: state=%s", visionThread.getState());
+
         RobotLog.ii(AbstractOpMode.GORILLA_CORE, "VisionTaskSwitchingCameras.init(), done");
-        telemetry.log().add("VisionTaskSwitchingCameras.init(), done");
-        telemetry.update();
         return this;
-    }
-
-    public VisionTaskSwitchingCameras<OpModeT> stop() {
-        visionRunner.stop();
-
-        // TODO: Re-enable tis after testing whether commenting it out keeps the bot from "losing" the camera,
-        // and not finding it when another OpMode is run.
-//         portal.close();
-//         waitForPortalState(portal, CAMERA_DEVICE_CLOSED, 1000);
-
-        return this;
-    }
-
-    public synchronized AprilTagDetections detections() {
-        return visionRunner.detections();
-    }
-
-    public VisionTaskSwitchingCameras<OpModeT> cameraLeft(WebcamName value) {
-        cameraLeft = value;
-
-        return this;
-    }
-
-    public VisionTaskSwitchingCameras<OpModeT> cameraRight(WebcamName value) {
-        cameraRight = value;
-
-        return this;
-    }
-
-    public boolean streaming() {
-        return visionRunner.streaming();
     }
 
     public synchronized VisionTaskSwitchingCameras<OpModeT> streaming(boolean value) {
@@ -185,14 +144,6 @@ if (true) {return this;}
 
         return this;
     }
-
-    VisionSwitchingRunner visionRunner = new VisionSwitchingRunner();
-
-    Thread visionThread = new Thread(visionRunner);
-
-    WebcamName cameraLeft;
-
-    WebcamName cameraRight;
 
     private VisionPortal portal;
 

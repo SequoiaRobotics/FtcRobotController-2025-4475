@@ -1,13 +1,16 @@
 package org.firstinspires.ftc.gorillacoder;
 
+import static org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit.CM;
+
+import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.hardware.HardwareDevice;
+import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.util.RobotLog;
 
-import org.firstinspires.ftc.vision.VisionProcessor;
+import org.firstinspires.ftc.robotcore.external.navigation.Position;
+import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.function.Supplier;
@@ -15,9 +18,78 @@ import java.util.function.Supplier;
 public abstract class AbstractOpMode<OpModeT extends OpMode> extends OpMode {
 
     /** Subclasses should override if they need to add vision processors to their VisionTask. */
+    @SuppressWarnings("UnusedReturnValue")
+    protected AbstractOpMode<OpModeT> configureAprilTagProcessors() {
+        return this;
+    }
+
+    /** Subclasses should override if they need to add vision processors to their VisionTask. */
+    @SuppressWarnings("UnusedReturnValue")
     protected AbstractOpMode<OpModeT> addVisionProcessors() {
         return this;
     }
+
+    /** Subclasses should set inversionFactor per the field location of bots at start.
+     *   1 if red bots start on the red side of the field. Nearer the red wall.
+     *  -1 if red bots start on the blue side of the field. Nearer the blue wall.
+     */
+    protected double inversionFactor = -1;
+
+    /** Which alliance's side of the field is the position on?
+     *
+     *  THIS WORKS ONLY FOR "SQUARE" FIELDS, where red and blue alliances face each other
+     *  on parallel walls of the field.
+     *
+     *  OpMode must override this if the field is a "diamond" field, where red and blue alliances
+     *  are on adjacent walls.
+     *
+     * @param position
+     * @return Alliance for the field position.
+     */
+    protected Alliance allianceOwningFieldPosition(Position position) {
+        double ycm = inversionFactor * CM.fromUnit(position.unit, position.y);
+        if ( ycm < -20 ) {
+            // Near the red wall, so a blue bot
+            return Alliance.Blue;
+        } else if ( 20 < ycm ) {
+            return Alliance.Red;
+        } else {
+            return Alliance.Unknown;
+        }
+    }
+
+    /** Set our alliance based on the first AprilTag detection seen.
+     *
+     *  It is critical that the robot can see an AprilTag before the start of the match.
+     *  Otherwise, it may move to the other side of the field before it sees an AprilTag,
+     *  and will therefore set its alliance incorrectly.
+     *
+     * @param detection
+     * @return
+     */
+    @SuppressWarnings("UnusedReturnValue")
+    protected AbstractOpMode<OpModeT> setAllianceFromDetection(AprilTagDetection detection) {
+        // We already know our alliance
+        if (Alliance.Unknown != alliance) return this;
+
+        // Don't set our alliance if we aren't in Autonomous period. Who knows where we are on the field ...
+        if (null == getClass().getAnnotation(Autonomous.class)) return this;
+
+        if (null == detection) throw new NullPointerException("detection is null");
+
+        alliance = allianceOwningFieldPosition(detection.robotPose.getPosition());
+        blackboard.put("Alliance", alliance.toString());
+
+        return this;
+    }
+    @SuppressWarnings("UnusedReturnValue")
+    protected AbstractOpMode<OpModeT> onFreshDetections(String label, List<AprilTagDetection> blobs) {
+        blobs.forEach(blob -> {
+            setAllianceFromDetection(blob);
+        });
+        return this;
+    }
+
 
     // TODO: KIll this. It's too complicated. And OpModes need to know their tasks, so tey are already just creating them.
     //  Sure, we could give the tasks names so the OpMode could look them up after they were built ... but why.
@@ -71,7 +143,12 @@ public abstract class AbstractOpMode<OpModeT extends OpMode> extends OpMode {
                 now, task.nextRunMillis(), task.frequencyMillis());
     }
 
-    /** Configure telemetry. Configure capacity, order, format, etc. */
+    @Override
+    public void init_loop() {
+        tasks.forEach(BotTask::waitForStart);
+    }
+
+        /** Configure telemetry. Configure capacity, order, format, etc. */
     @SuppressWarnings("UnusedReturnValue")
     protected AbstractOpMode<OpModeT> configureTelemetry() {
         return this;
@@ -79,53 +156,57 @@ public abstract class AbstractOpMode<OpModeT extends OpMode> extends OpMode {
 
     protected abstract BotTask<OpModeT>[] getTasks();
 
-//    public abstract AbstractOpMode<OpModeT> postOpModeInit();
-
     @Override
     public void init() {
-        telemetry.addData("status", "AbstractOpMode.init(): start");
+        configureTelemetry();
+
+        RobotLog.ii(GORILLA_CORE, "%s.init(): start", getClass().getSimpleName());
 
         for (String name: hardwareMap.getAllNames(HardwareDevice.class)) {
-            RobotLog.ii(GORILLA_CORE, "AbstractOpMode.init(): have device %s", name);
+            RobotLog.ii(GORILLA_CORE, "%s.init(): have device %s", getClass().getSimpleName(), name);
         }
-        telemetry.update();
 
-        configureTelemetry();
         try {
             tasks((Object[]) getTasks());
         } catch (Exception ex) {
-            throw new RuntimeException("AbstractOpMode.init(): Exception while creating tasks", ex);
+            throw new RuntimeException(String.format("%s.init(): Exception while creating tasks", getClass().getSimpleName()), ex);
         }
-        telemetry.addData("status", "TeleOpDrive.init(): tasks prepared");
-        telemetry.update();
+        RobotLog.ii(GORILLA_CORE, "%s.init(): tasks prepared", getClass().getSimpleName());
 
-        RobotLog.ii(GORILLA_CORE, "AbstractOpMode.init(): tasks initializing");
+        RobotLog.ii(GORILLA_CORE, "%s.init(): tasks initializing", getClass().getSimpleName());
         tasks.forEach(task -> {
-            RobotLog.ii(GORILLA_CORE, "AbstractOpMode.init(): %s initializing", task.getClass().getSimpleName());
+            RobotLog.ii(GORILLA_CORE, "%s.init(): %s initializing", getClass().getSimpleName(), task.getClass().getSimpleName());
             task.init();
-            RobotLog.ii(GORILLA_CORE, "AbstractOpMode.init(): %s initialized", task.getClass().getSimpleName());
+            RobotLog.ii(GORILLA_CORE, "%s.init(): %s initialized", getClass().getSimpleName(), task.getClass().getSimpleName());
         });
-        RobotLog.ii(GORILLA_CORE, "AbstractOpMode.init(): tasks initialized");
+        RobotLog.ii(GORILLA_CORE, "%s.init(): tasks initialized", getClass().getSimpleName());
 
-        telemetry.addData("status", "AbstractOpMode.init(): done");
-        telemetry.update();
+        RobotLog.ii(GORILLA_CORE, "%s.init(): done", getClass().getSimpleName());
+    }
+
+    @Override
+    public void resetRuntime() {
+        super.resetRuntime();
+        runtime.reset();
     }
 
     @Override
     public void start() {
+        super.start();
+        resetRuntime();
         tasks.forEach(task -> {
-            RobotLog.ii(GORILLA_CORE, "AbstractOpMode start: %s starting", task.getClass().getSimpleName());
+            RobotLog.ii(GORILLA_CORE, "%s start: %s starting", getClass().getSimpleName(), task.getClass().getSimpleName());
             task.start();
-            RobotLog.ii(GORILLA_CORE, "AbstractOpMode start: %s started", task.getClass().getSimpleName());
+            RobotLog.ii(GORILLA_CORE, "%s start: %s started", getClass().getSimpleName(), task.getClass().getSimpleName());
         });
     }
 
     @Override
     public void stop() {
         tasks.forEach(task -> {
-            RobotLog.ii(GORILLA_CORE, "AbstractOpMode stop: %s starting", task.getClass().getSimpleName());
+            RobotLog.ii(GORILLA_CORE, "%s stop: %s starting", getClass().getSimpleName(), task.getClass().getSimpleName());
             task.stop();
-            RobotLog.ii(GORILLA_CORE, "AbstractOpMode stop: %s started", task.getClass().getSimpleName());
+            RobotLog.ii(GORILLA_CORE, "%s stop: %s started", getClass().getSimpleName(), task.getClass().getSimpleName());
         });
     }
 
@@ -188,7 +269,37 @@ public abstract class AbstractOpMode<OpModeT extends OpMode> extends OpMode {
         }
     }
 
-    PriorityQueue< BotTask<AbstractOpMode<OpModeT>> > tasks;
+    protected static enum Alliance {
+        Unknown,
+        Red,
+        Blue
+    }
+
+    protected PriorityQueue< BotTask<AbstractOpMode<OpModeT>> > tasks;
+
+    protected Alliance alliance = Alliance.Unknown;
+    {
+        // Get the alliance from the blackboard. If the blackboard does not contain Alliance, then set to Unknown
+        // Do not store the alliance value itself! Store the string value and convert when reading it in.
+        // Why? Because Alliance values compiled for different OpModes may be different. The code may have been
+        // recompiled, different class loaders, who knows. And then the cast fails.
+        Object allianceFromBlackboard = blackboard.putIfAbsent("Alliance", Alliance.Unknown.toString());
+        if (null != allianceFromBlackboard) {
+            try {
+                this.alliance = Alliance.valueOf((String)allianceFromBlackboard);
+            } catch (IllegalArgumentException ex) {
+                // Value does not match an Alliance. Set it to unknown.
+                RobotLog.ee(GORILLA_CORE, ex, "'%s' is not an Alliance", allianceFromBlackboard);
+                alliance = Alliance.Unknown;
+            } catch (Exception ex) {
+                // Value does not match an Alliance. Set it to unknown.
+                RobotLog.ee(GORILLA_CORE, ex, "'%s' is is a %s and not a java.lang.String", allianceFromBlackboard, allianceFromBlackboard.getClass().getCanonicalName());
+                alliance = Alliance.Unknown;
+            }
+        }
+    }
+
+    protected final ElapsedTime runtime = new ElapsedTime();
 
     public static final String GORILLA_CORE = "GorillaCore";
 } // class AbstractOpMode<OpModeT>

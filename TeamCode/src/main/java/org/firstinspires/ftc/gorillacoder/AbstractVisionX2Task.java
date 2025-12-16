@@ -22,6 +22,7 @@ import org.firstinspires.ftc.vision.opencv.ImageRegion;
 import org.firstinspires.ftc.vision.opencv.PredominantColorProcessor;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -36,13 +37,8 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
     @Override
     public abstract AbstractVisionX2Task<OpModeT> init();
 
-//    protected abstract AbstractVisionX2Task<OpModeT> build();
-
     @Override
     public AbstractVisionX2Task<OpModeT> start() {
-        visionThread.start();
-        RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionX2Task.start(), visionThread started: state=%s", visionThread.getState());
-
         return this;
     }
 
@@ -127,12 +123,12 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
         ) {
             waitCount++;
             if (maxWaitCount < waitCount) {
-                String message = String.format("AbstractVisionX2Task.waitForPortalState(portal, %d/%s, %d) abort portal is not ready: state=%d/%s",
+                String message = String.format(Locale.US, "AbstractVisionX2Task.waitForPortalState(portal, %d/%s, %d) abort portal is not ready: state=%d/%s",
                         stateToWaitFor.ordinal(), stateToWaitFor, maxWaitCount, state.ordinal(), state
                 );
                 throw new RuntimeException(message);
             }
-            String message = String.format("AbstractVisionX2Task.waitForPortalState(portal, %d/%s, %d) waiting for portal to be ready, calling sleepUntil until next iteration: waitCount=%d state=%d/%s",
+            String message = String.format(Locale.US, "AbstractVisionX2Task.waitForPortalState(portal, %d/%s, %d) waiting for portal to be ready, calling sleepUntil until next iteration: waitCount=%d state=%d/%s",
                     stateToWaitFor.ordinal(), stateToWaitFor, maxWaitCount, waitCount, state.ordinal(), state
             );
             RobotLog.ii(AbstractOpMode.GORILLA_CORE, message);
@@ -141,14 +137,12 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
         VisionPortal.CameraState state        = portal.getCameraState();
         long                     waitDuration = System.currentTimeMillis() - waitTime0;
         if (!stateToWaitFor.equals(state)) {
-            String message = String.format("AbstractVisionX2Task.waitForPortalState(%s), abort: portal state is %s after %dms", stateToWaitFor, state, waitDuration);
+            String message = String.format(Locale.US, "AbstractVisionX2Task.waitForPortalState(%s), abort: portal state is %s after %dms", stateToWaitFor, state, waitDuration);
             RobotLog.ii(AbstractOpMode.GORILLA_CORE, message);
-            telemetry.log().add(message);
             throw new RuntimeException(message);
         }
-        String message = String.format("AbstractVisionX2Task.waitForPortalState(%s), done: portal state is %s after %dms", stateToWaitFor, state, waitDuration);
+        String message = String.format(Locale.US, "AbstractVisionX2Task.waitForPortalState(%s), done: portal state is %s after %dms", stateToWaitFor, state, waitDuration);
         RobotLog.ii(AbstractOpMode.GORILLA_CORE, message);
-        telemetry.log().add(message);
 
         return this;
     }
@@ -167,127 +161,15 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
                 // Clear drawing box fit, then set circle color to draw on RC/DS view.
                 .setBoxFitColor(0)
                 .setCircleFitColor(Color.rgb(255, 255, 0))
-                // Smooth the transitions between different colors in image
-                .setBlurSize(5)
-                // fill in perimeter holes. Dilate to fill in edge divots, then shrink to original size.
-                .setMorphOperationType(ColorBlobLocatorProcessor.MorphOperationType.CLOSING)
-                .setDilateSize(15)
-                .setErodeSize(15)
                 ;
     }
-
-    // TODO: Add utilities to help with these?:
-    //             List<ColorBlobLocatorProcessor.Blob> blobs = colorLocator.getBlobs();
-    //             * The list of Blobs can be filtered to remove unwanted Blobs.
-    //             *   Note:  All contours will be still displayed on the Stream Preview, but only those
-    //             *          that satisfy the filter conditions will remain in the current list of
-    //             *          "blobs".  Multiple filters may be used.
-    //             *
-    //             * To perform a filter
-    //             *   ColorBlobLocatorProcessor.Util.filterByCriteria(criteria, minValue, maxValue, blobs);
-    //             *
-    //             * The following criteria are currently supported.
-    //             *
-    //             * ColorBlobLocatorProcessor.BlobCriteria.BY_CONTOUR_AREA
-    //             *   A Blob's area is the number of pixels contained within the Contour.  Filter out any
-    //             *   that are too big or small. Start with a large range and then refine the range based
-    //             *   on the likely size of the desired object in the viewfinder.
-    //             *
-    //             * ColorBlobLocatorProcessor.BlobCriteria.BY_DENSITY
-    //             *   A blob's density is an indication of how "full" the contour is.
-    //             *   If you put a rubber band around the contour you would get the "Convex Hull" of the
-    //             *   contour. The density is the ratio of Contour-area to Convex Hull-area.
-    //             *
-    //             * ColorBlobLocatorProcessor.BlobCriteria.BY_ASPECT_RATIO
-    //             *   A blob's Aspect ratio is the ratio of boxFit long side to short side.
-    //             *   A perfect Square has an aspect ratio of 1.  All others are > 1
-    //             *
-    //             * ColorBlobLocatorProcessor.BlobCriteria.BY_ARC_LENGTH
-    //             *   A blob's arc length is the perimeter of the blob.
-    //             *   This can be used in conjunction with an area filter to detect oddly shaped blobs.
-    //             *
-    //             * ColorBlobLocatorProcessor.BlobCriteria.BY_CIRCULARITY
-    //             *   A blob's circularity is how circular it is based on the known area and arc length.
-    //             *   A perfect circle has a circularity of 1.  All others are < 1
-    //             */
-    //            ColorBlobLocatorProcessor.Util.filterByCriteria(
-    //                    ColorBlobLocatorProcessor.BlobCriteria.BY_CONTOUR_AREA,
-    //                    50, 20000, blobs);  // filter out very small blobs.
-    //
-    //            ColorBlobLocatorProcessor.Util.filterByCriteria(
-    //                    ColorBlobLocatorProcessor.BlobCriteria.BY_CIRCULARITY,
-    //                    0.6, 1, blobs);     /* filter out non-circular blobs.
-    //                    * NOTE: You may want to adjust the minimum value depending on your use case.
-    //                    * Circularity values will be affected by shadows, and will therefore vary based
-    //                    * on the location of the camera on your robot and venue lighting. It is strongly
-    //                    * encouraged to test your vision on the competition field if your event allows
-    //                    * sensor calibration time.
-    //                    */
-    //
-    //            /*
-    //             * The list of Blobs can be sorted using the same Blob attributes as listed above.
-    //             * No more than one sort call should be made.  Sorting can use ascending or descending order.
-    //             * Here is an example.:
-    //             *   ColorBlobLocatorProcessor.Util.sortByCriteria(
-    //             *      ColorBlobLocatorProcessor.BlobCriteria.BY_CONTOUR_AREA, SortOrder.DESCENDING, blobs);
-    //             */
-    //
-    //            telemetry.addLine("Circularity Radius Center");
-    //
-    //            // Display the Blob's circularity, and the size (radius) and center location of its circleFit.
-    //            for (ColorBlobLocatorProcessor.Blob b : blobs) {
-    //
-    //                Circle circleFit = b.getCircle();
-    //                telemetry.addLine(String.format("%5.3f      %3d     (%3d,%3d)",
-    //                           b.getCircularity(), (int) circleFit.getRadius(), (int) circleFit.getX(), (int) circleFit.getY()));
-    //            }
 
     // When oh when will FIRST move from Java 11 to Java 25. Or even 17. *Sigh*
     // TODO: AprilTagDetections should be a record and not a class.
     public static class AprilTagDetections {
-        public List<AprilTagDetection> right;
         public List<AprilTagDetection> left;
+        public List<AprilTagDetection> right;
     } // static class AprilTagDetections
-
-    public interface ProcessorBuilder<T> {
-        T build();
-    } // interface ProcessorBuilder<T>
-
-    public static class AprilTagProcessorBuilder implements ProcessorBuilder<AprilTagProcessor> {
-        public AprilTagProcessorBuilder(AprilTagProcessor.Builder builder){
-            this.builder = builder;
-        }
-
-        public AprilTagProcessor build() {
-            return builder.build();
-        }
-
-        private final AprilTagProcessor.Builder builder;
-    } // static class AprilTagProcessorBuilder
-
-    public static class ColorBlobLocatorProcessorBuilder implements ProcessorBuilder<ColorBlobLocatorProcessor> {
-        public ColorBlobLocatorProcessorBuilder(ColorBlobLocatorProcessor.Builder builder){
-            this.builder = builder;
-        }
-
-        public ColorBlobLocatorProcessor build() {
-            return builder.build();
-        }
-
-        private final ColorBlobLocatorProcessor.Builder builder;
-    } // static class ColorBlobLocatorProcessorBuilder
-
-    public static class PredominantColorProcessorBuilder implements ProcessorBuilder<PredominantColorProcessor> {
-        public PredominantColorProcessorBuilder(PredominantColorProcessor.Builder builder){
-            this.builder = builder;
-        }
-
-        public PredominantColorProcessor build() {
-            return builder.build();
-        }
-
-        private final PredominantColorProcessor.Builder builder;
-    } // static class PredominantColorProcessorBuilder
 
     protected abstract class AbstractVisionRunner implements Runnable {
 
@@ -329,15 +211,16 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
                 }
                 targetDetectionsCounts.compute(detection.id, (Integer id, Long value) -> null==value?1:value+1);
 
+                String name = null == detection.metadata ? "unknown" : detection.metadata.name;
                 RobotLog.ii(
                         AbstractOpMode.GORILLA_CORE,
-                        "updateDetections(%s): id:%d time:%d latest:%d margin:%f hamming:%d\n\t"
+                        "updateDetections(%s): id:%d name:%s time:%d latest:%d margin:%f hamming:%d\n\t"
                                 + "center:%s corners:%d/%s/%s/%s/%s\n\t"
                                 + "raw:%s\n\t"
                                 + "ftc:%s\n\t"
                                 + "bot:%s",
                         cameraLabel,
-                        detection.id, detection.frameAcquisitionNanoTime, latestDetectionNanos,
+                        detection.id, name, detection.frameAcquisitionNanoTime, latestDetectionNanos,
                         detection.decisionMargin,
                         detection.hamming,
                         detection.center,
@@ -346,15 +229,6 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
                         FtcToString.apply(detection.ftcPose),
                         detection.robotPose
                 );
-                if (detection.metadata != null) {
-                    telemetry.addLine(String.format("\n==== (ID %d) %s", detection.id, detection.metadata.name));
-                    telemetry.addLine(String.format("XYZ %6.1f %6.1f %6.1f  (inch)", detection.ftcPose.x, detection.ftcPose.y, detection.ftcPose.z));
-                    telemetry.addLine(String.format("PRY %6.1f %6.1f %6.1f  (deg)", detection.ftcPose.pitch, detection.ftcPose.roll, detection.ftcPose.yaw));
-                    telemetry.addLine(String.format("RBE %6.1f %6.1f %6.1f  (inch, deg, deg)", detection.ftcPose.range, detection.ftcPose.bearing, detection.ftcPose.elevation));
-                } else {
-                    telemetry.addLine(String.format("\n==== (ID %d) Unknown", detection.id));
-                    telemetry.addLine(String.format("Center %6.0f %6.0f   (pixels)", detection.center.x, detection.center.y));
-                }
             });
 
         }
@@ -364,7 +238,6 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
             long time0 = System.currentTimeMillis();
             long nextRunTime = time0;
             int count = 0;
-            telemetry.log().add("AbstractVisionRunner.run(): start");
             RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionRunner.run start: time0 = %d", time0);
             stopped = false;
             running = true;
@@ -393,13 +266,11 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
 
             stopped = true;
             RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionRunner.run done");
-            telemetry.log().add("AbstractVisionRunner.run(): done");
 
         }
 
         @SuppressWarnings("UnusedReturnValue")
         public AbstractVisionRunner stop() {
-            telemetry.log().add("AbstractVisionRunner.stop(): start");
             RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionRunner.stop() start");
 
             running = false;
@@ -416,7 +287,6 @@ public abstract class AbstractVisionX2Task<OpModeT extends OpMode> extends Abstr
             RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionRunner.stop() waited");
 
             RobotLog.ii(AbstractOpMode.GORILLA_CORE, "AbstractVisionRunner.stop() done");
-            telemetry.log().add("AbstractVisionRunner.stop(): done");
 
             return this;
         }

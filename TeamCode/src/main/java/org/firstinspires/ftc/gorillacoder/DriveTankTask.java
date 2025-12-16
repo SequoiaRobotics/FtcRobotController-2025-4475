@@ -18,10 +18,6 @@ public class DriveTankTask<OpModeT extends AbstractOpMode<OpModeT>> extends Abst
         driveRightRear.setPower(rightPower);
         driveRightFront.setPower(rightPower);
 
-        // Show the elapsed game time and wheel power.
-        telemetry.addData("Status", "Run Time: " + runtime);
-        telemetry.addData("Motors", "left (%.2f), right (%.2f)", leftPower, rightPower);
-
         RobotLog.ii(AbstractOpMode.GORILLA_CORE, "%s.run() done: left:%f right:%f", getClass().getSimpleName(), leftPower, rightPower);
         return this;
     }
@@ -52,6 +48,7 @@ public class DriveTankTask<OpModeT extends AbstractOpMode<OpModeT>> extends Abst
     }
 
     public class PovModeTask extends AbstractBotTask<OpMode> {
+        @Override
         public PovModeTask run() {
             leftPower  = Range.clip(speed - turnRate, -1.0, 1.0);
             rightPower = Range.clip(speed + turnRate, -1.0, 1.0);

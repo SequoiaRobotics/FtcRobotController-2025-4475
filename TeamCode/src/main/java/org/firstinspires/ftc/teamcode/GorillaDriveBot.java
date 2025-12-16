@@ -33,9 +33,9 @@ import java.util.Locale;
 
 @SuppressWarnings("unused")
 @TeleOp
-public class TeleOpDrive extends AbstractOpMode<TeleOpDrive> {
+public class GorillaDriveBot extends AbstractOpMode<GorillaDriveBot> {
 
-    public abstract static class TeleOpDriveTask extends AbstractBotTask<TeleOpDrive> {
+    public abstract static class TeleOpDriveTask extends AbstractBotTask<GorillaDriveBot> {
     }
 
     protected class GamePadTask extends TeleOpDriveTask {
@@ -190,7 +190,7 @@ public class TeleOpDrive extends AbstractOpMode<TeleOpDrive> {
         }
     } // class TelemetryTask
 
-    protected TeleOpDrive configureTelemetry() {
+    protected GorillaDriveBot configureTelemetry() {
         telemetry.log().setCapacity(100);
         telemetry.log().setDisplayOrder(Telemetry.Log.DisplayOrder.NEWEST_FIRST);
         telemetry.setDisplayFormat(Telemetry.DisplayFormat.MONOSPACE);
@@ -199,7 +199,7 @@ public class TeleOpDrive extends AbstractOpMode<TeleOpDrive> {
     }
 
     @Override
-    protected BotTask<TeleOpDrive>[] getTasks() {
+    protected BotTask<GorillaDriveBot>[] getTasks() {
         telemetry.addData("status", "TeleOpDrive.createTasks(): tasks created");
 
         drivePovTask
@@ -214,7 +214,7 @@ public class TeleOpDrive extends AbstractOpMode<TeleOpDrive> {
         telemetry.addData("status", "TeleOpDrive.createTasks(): tasks connected to hardware");
 
         @SuppressWarnings("unchecked")
-        BotTask<TeleOpDrive>[] result = new BotTask[] {
+        BotTask<GorillaDriveBot>[] result = new BotTask[] {
                 visionTask,
                 drivePovTask,
 //                driveTankTask,
@@ -243,7 +243,7 @@ public class TeleOpDrive extends AbstractOpMode<TeleOpDrive> {
     protected static final YawPitchRollAngles cameraOrientationRight = new YawPitchRollAngles(DEGREES, 0, -90, 0, 0);
 
     @Override
-    protected TeleOpDrive configureAprilTagProcessors() {
+    protected GorillaDriveBot configureAprilTagProcessors() {
         visionTask.atpBuilderLeft. setCameraPose(cameraPositionLeft, cameraOrientationLeft);
         visionTask.atpBuilderRight.setCameraPose(cameraPositionRight, cameraOrientationRight);
 
@@ -251,7 +251,7 @@ public class TeleOpDrive extends AbstractOpMode<TeleOpDrive> {
     }
 
     @Override
-    protected TeleOpDrive addVisionProcessors() {
+    protected GorillaDriveBot addVisionProcessors() {
         // Need to:
         // - Create the right and left portal builders and set default config. VisionTask will do this. Bots can always override.
         // - Create the left and right april tag processor builders and set default config. VisionTask will do this. Bots can always override.
@@ -299,11 +299,11 @@ public class TeleOpDrive extends AbstractOpMode<TeleOpDrive> {
         return this;
     }
 
-    protected VisionTaskMultiPortal<TeleOpDrive> visionTask   = new VisionTaskMultiPortal<>();
+    protected VisionTaskMultiPortal<GorillaDriveBot> visionTask   = new VisionTaskMultiPortal<>();
 
-    protected DrivePovTask<TeleOpDrive>          drivePovTask = new DrivePovTask<>();
+    protected DrivePovTask<GorillaDriveBot>          drivePovTask = new DrivePovTask<>();
 
-    protected DriveTankTask<TeleOpDrive>         driveTankTask = new DriveTankTask<>();
+    protected DriveTankTask<GorillaDriveBot>         driveTankTask = new DriveTankTask<>();
 
     protected GamePadTask                        gamePadTask  = new GamePadTask();
 

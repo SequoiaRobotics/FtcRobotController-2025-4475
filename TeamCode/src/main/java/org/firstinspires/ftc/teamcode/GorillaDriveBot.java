@@ -157,7 +157,7 @@ public class GorillaDriveBot extends AbstractOpMode<GorillaDriveBot> {
                 );
             }
 
-            telemetry.addData("Status", "running %s", runtime);
+            telemetry.addData("Status", "%s alliance running %s", alliance, runtime);
             telemetry.addData("Camera", "%s %s", visionTask.portalLeft.getCameraState() , visionTask.portalRight.getCameraState());
             telemetry.addData("Motors", "speed:%.2f  turn:%.2f", drivePovTask.speed, drivePovTask.turnRate);
             telemetry.addData("Motors", " left:%.2f right:%.2f", drivePovTask.leftPower, drivePovTask.rightPower);
